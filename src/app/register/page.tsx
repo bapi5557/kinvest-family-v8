@@ -8,7 +8,7 @@ import { useAuth } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
-import { Wallet, AlertCircle } from 'lucide-react';
+import { Wallet, AlertCircle, Info } from 'lucide-react';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
 import { firebaseConfig } from '@/firebase/config';
@@ -29,8 +29,8 @@ export default function RegisterPage() {
     
     if (isConfigDummy) {
       toast({
-        title: "Configuration Error",
-        description: "Firebase is using placeholder credentials. Please connect a real Firebase project.",
+        title: "Configuration Missing",
+        description: "Firebase placeholder keys detected. Please ensure your project is connected in the Firebase Console and wait for the config to sync.",
         variant: "destructive",
       });
       return;
@@ -38,8 +38,8 @@ export default function RegisterPage() {
 
     if (password.length < 6) {
       toast({
-        title: "Weak Password",
-        description: "Password must be at least 6 characters long.",
+        title: "Validation Error",
+        description: "Firebase requires passwords to be at least 6 characters.",
         variant: "destructive",
       });
       return;
@@ -47,8 +47,8 @@ export default function RegisterPage() {
 
     if (password !== confirmPassword) {
       toast({
-        title: "Registration Error",
-        description: "Passwords do not match.",
+        title: "Password Mismatch",
+        description: "The confirmation password does not match.",
         variant: "destructive",
       });
       return;
@@ -59,24 +59,25 @@ export default function RegisterPage() {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       if (userCredential.user) {
         toast({
-          title: "Success!",
-          description: "Your family registry has been created.",
+          title: "Registry Created",
+          description: "Welcome to Kincash! Your family gateway is now active.",
         });
         router.push('/');
       }
     } catch (error: any) {
-      console.error("Registration Error Details:", error);
+      console.error("Registration Error:", error);
       
-      let message = error.message || "An unexpected error occurred.";
+      let message = "An unexpected error occurred during registration.";
       
-      if (error.code === 'auth/email-already-in-use') {
-        message = "This email is already registered.";
+      // Map specific Firebase errors to helpful user advice
+      if (error.code === 'auth/operation-not-allowed') {
+        message = "Email/Password sign-in is disabled. Please enable it in the Firebase Console under Authentication > Sign-in method.";
+      } else if (error.code === 'auth/email-already-in-use') {
+        message = "This family email is already registered. Try logging in instead.";
       } else if (error.code === 'auth/invalid-email') {
         message = "Please enter a valid email address.";
-      } else if (error.code === 'auth/operation-not-allowed') {
-        message = "Email/password registration is not enabled in the Firebase Console.";
       } else if (error.code === 'auth/network-request-failed') {
-        message = "Network error. Please check your connection.";
+        message = "Connection failed. Please check your internet or console connectivity.";
       }
 
       toast({
@@ -100,11 +101,11 @@ export default function RegisterPage() {
       </div>
 
       {isConfigDummy && (
-        <div className="max-w-md w-full mb-6 p-4 bg-destructive/10 border border-destructive/20 rounded-xl flex items-start gap-3 text-destructive">
-          <AlertCircle className="w-5 h-5 mt-0.5 shrink-0" />
+        <div className="max-w-md w-full mb-6 p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-start gap-3 text-amber-500">
+          <Info className="w-5 h-5 mt-0.5 shrink-0" />
           <div className="text-xs">
-            <p className="font-bold uppercase mb-1">Dummy Config Detected</p>
-            <p>The app is running with placeholder Firebase keys. Registration will fail until you provide a valid Firebase configuration.</p>
+            <p className="font-bold uppercase mb-1">Setup Required</p>
+            <p>Your app is not yet connected to a real Firebase project. Registration will only work after you've completed the project setup in the console.</p>
           </div>
         </div>
       )}
@@ -150,7 +151,7 @@ export default function RegisterPage() {
               />
             </div>
             <Button type="submit" className="w-full btn-cyan py-6 font-bold" disabled={loading}>
-              {loading ? "CREATING..." : "CREATE FAMILY REGISTRY"}
+              {loading ? "INITIALIZING..." : "CREATE FAMILY REGISTRY"}
             </Button>
           </form>
         </CardContent>
