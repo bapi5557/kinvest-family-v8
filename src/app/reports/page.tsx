@@ -1,29 +1,35 @@
+
 "use client";
 
-import { useEffect, useState } from "react";
-import { collection, query, onSnapshot, orderBy } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { useEffect, useState, useMemo } from "react";
+import { collection, query, orderBy } from "firebase/firestore";
+import { useFirestore, useCollection, useUser } from "@/firebase";
 import { Expense } from "@/app/lib/types";
 import { MobileNav } from "@/components/layout/MobileNav";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Sparkles, BarChart, PieChart, Info } from "lucide-react";
+import { Sparkles } from "lucide-react";
 import { smartSpendingInsights, SmartSpendingInsightsOutput } from "@/ai/flows/smart-spending-insights";
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
-import { Bar, BarChart as ReBarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, Cell, Pie, PieChart as RePieChart } from "recharts";
+import { ResponsiveContainer, Tooltip, Cell, Pie, PieChart as RePieChart } from "recharts";
+import { useRouter } from "next/navigation";
 
 export default function ReportsPage() {
-  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const firestore = useFirestore();
+  const { user, loading: authLoading } = useUser();
+  const router = useRouter();
+
+  const expensesQuery = useMemo(() => query(collection(firestore, "expenses"), orderBy("date", "desc")), [firestore]);
+  const { data: expenses, loading: expensesLoading } = useCollection<Expense>(expensesQuery as any);
+
   const [aiResult, setAiResult] = useState<SmartSpendingInsightsOutput | null>(null);
   const [loadingAi, setLoadingAi] = useState(false);
 
   useEffect(() => {
-    const q = query(collection(db, "expenses"), orderBy("date", "desc"));
-    return onSnapshot(q, (snapshot) => {
-      setExpenses(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Expense)));
-    });
-  }, []);
+    if (!authLoading && !user) {
+      router.push("/login");
+    }
+  }, [user, authLoading, router]);
 
   const categoryTotals = expenses.reduce((acc, curr) => {
     acc[curr.category] = (acc[curr.category] || 0) + curr.amount;
@@ -49,6 +55,8 @@ export default function ReportsPage() {
       setLoadingAi(false);
     }
   };
+
+  if (authLoading) return null;
 
   return (
     <div className="flex flex-col min-h-screen pb-20 bg-background">
@@ -155,7 +163,7 @@ export default function ReportsPage() {
                       <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
                         <div 
                           className="h-full bg-accent" 
-                          style={{ width: `${(item.value / expenses.reduce((a,b)=>a+b.amount,0)) * 100}%` }}
+                          style={{ width: `${(item.value / (expenses.reduce((a,b)=>a+b.amount,0) || 1)) * 100}%` }}
                         />
                       </div>
                     </div>

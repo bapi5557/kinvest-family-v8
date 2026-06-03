@@ -1,13 +1,14 @@
+
 "use client";
 
-import { useEffect, useState } from "react";
-import { collection, query, onSnapshot, addDoc, deleteDoc, doc, updateDoc, orderBy } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { useEffect, useState, useMemo } from "react";
+import { collection, query, addDoc, deleteDoc, doc, updateDoc, orderBy } from "firebase/firestore";
+import { useFirestore, useCollection, useUser } from "@/firebase";
 import { FamilyMember } from "@/app/lib/types";
 import { MobileNav } from "@/components/layout/MobileNav";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, Plus, UserPlus, MoreVertical, Edit2, Trash2, User } from "lucide-react";
+import { Search, Plus, UserPlus, MoreVertical, Edit2, Trash2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -24,9 +25,18 @@ import {
 } from "@/components/ui/dropdown-menu";
 import Link from "next/link";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { useRouter } from "next/navigation";
+import { errorEmitter } from "@/firebase/error-emitter";
+import { FirestorePermissionError } from "@/firebase/errors";
 
 export default function MembersPage() {
-  const [members, setMembers] = useState<FamilyMember[]>([]);
+  const firestore = useFirestore();
+  const { user, loading: authLoading } = useUser();
+  const router = useRouter();
+
+  const membersQuery = useMemo(() => query(collection(firestore, "members"), orderBy("name")), [firestore]);
+  const { data: members, loading: membersLoading } = useCollection<FamilyMember>(membersQuery as any);
+
   const [search, setSearch] = useState("");
   const [newName, setNewName] = useState("");
   const [newRel, setNewRel] = useState("");
@@ -34,46 +44,78 @@ export default function MembersPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   useEffect(() => {
-    const q = query(collection(db, "members"), orderBy("name"));
-    return onSnapshot(q, (snapshot) => {
-      setMembers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as FamilyMember)));
-    });
-  }, []);
+    if (!authLoading && !user) {
+      router.push("/login");
+    }
+  }, [user, authLoading, router]);
 
   const handleAddMember = async () => {
-    if (!newName) return;
-    await addDoc(collection(db, "members"), {
+    if (!newName || !firestore) return;
+    const data = {
       name: newName,
       relationship: newRel,
       createdAt: Date.now()
-    });
-    setNewName("");
-    setNewRel("");
-    setIsDialogOpen(false);
+    };
+
+    addDoc(collection(firestore, "members"), data)
+      .then(() => {
+        setNewName("");
+        setNewRel("");
+        setIsDialogOpen(false);
+      })
+      .catch(async (err) => {
+        const permissionError = new FirestorePermissionError({
+          path: 'members',
+          operation: 'create',
+          requestResourceData: data,
+        });
+        errorEmitter.emit('permission-error', permissionError);
+      });
   };
 
   const handleUpdateMember = async () => {
-    if (!editingMember || !newName) return;
-    await updateDoc(doc(db, "members", editingMember.id), {
+    if (!editingMember || !newName || !firestore) return;
+    const data = {
       name: newName,
       relationship: newRel
-    });
-    setEditingMember(null);
-    setNewName("");
-    setNewRel("");
-    setIsDialogOpen(false);
+    };
+
+    updateDoc(doc(firestore, "members", editingMember.id), data)
+      .then(() => {
+        setEditingMember(null);
+        setNewName("");
+        setNewRel("");
+        setIsDialogOpen(false);
+      })
+      .catch(async (err) => {
+        const permissionError = new FirestorePermissionError({
+          path: `members/${editingMember.id}`,
+          operation: 'update',
+          requestResourceData: data,
+        });
+        errorEmitter.emit('permission-error', permissionError);
+      });
   };
 
   const handleDeleteMember = async (id: string) => {
-    if (confirm("Delete this member and their history?")) {
-      await deleteDoc(doc(db, "members", id));
-    }
+    if (!firestore || !confirm("Delete this member and their history?")) return;
+    
+    deleteDoc(doc(firestore, "members", id))
+      .catch(async (err) => {
+        const permissionError = new FirestorePermissionError({
+          path: `members/${id}`,
+          operation: 'delete',
+        });
+        errorEmitter.emit('permission-error', permissionError);
+      });
   };
 
   const filteredMembers = members.filter(m => 
     m.name.toLowerCase().includes(search.toLowerCase()) || 
     m.relationship.toLowerCase().includes(search.toLowerCase())
   );
+
+  if (authLoading) return null;
 
   return (
     <div className="flex flex-col min-h-screen pb-20 bg-background">
@@ -166,7 +208,7 @@ export default function MembersPage() {
           </div>
         ))}
 
-        {filteredMembers.length === 0 && (
+        {(filteredMembers.length === 0 && !membersLoading) && (
           <div className="flex flex-col items-center justify-center py-20 text-muted-foreground gap-4">
             <UserPlus size={48} className="opacity-20" />
             <p>No members found in your family tree.</p>

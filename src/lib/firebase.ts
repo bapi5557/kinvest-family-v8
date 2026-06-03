@@ -1,7 +1,4 @@
 
-// This file is deprecated. Please use the standardized src/firebase directory.
-import { initializeFirebase } from '@/firebase';
-
-const { firestore: db, auth } = initializeFirebase();
-
-export { db, auth };
+// Deprecated file removed in favor of standardized src/firebase initialization.
+// If you need firestore/auth, use the useFirestore() and useAuth() hooks from '@/firebase'.
+export {};

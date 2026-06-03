@@ -1,15 +1,16 @@
+
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { collection, query, onSnapshot, addDoc, deleteDoc, doc, where, getDoc, orderBy } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { collection, query, addDoc, deleteDoc, doc, where, orderBy } from "firebase/firestore";
+import { useFirestore, useCollection, useDoc, useUser } from "@/firebase";
 import { Expense, ExpenseCategory, FamilyMember } from "@/app/lib/types";
 import { MobileNav } from "@/components/layout/MobileNav";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { ArrowLeft, Plus, ChevronRight, Trash2, DollarSign, Calendar as CalendarIcon, Tag } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Tag } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -27,6 +28,8 @@ import {
 } from "@/components/ui/dialog";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
+import { errorEmitter } from "@/firebase/error-emitter";
+import { FirestorePermissionError } from "@/firebase/errors";
 
 const CATEGORIES: ExpenseCategory[] = [
   'Electric Bill', 'LPG Cylinder', 'House Rent', 'Groceries', 'Medical', 'Education', 'Other Expenses'
@@ -36,67 +39,77 @@ export default function MemberProfile() {
   const { id } = useParams();
   const router = useRouter();
   const { toast } = useToast();
-  const [member, setMember] = useState<FamilyMember | null>(null);
-  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const firestore = useFirestore();
+  const { user, loading: authLoading } = useUser();
+
+  const memberRef = useMemo(() => (id ? doc(firestore, "members", id as string) : null), [firestore, id]);
+  const { data: member, loading: memberLoading } = useDoc<FamilyMember>(memberRef as any);
+
+  const expensesQuery = useMemo(() => {
+    if (!firestore || !id) return null;
+    return query(
+      collection(firestore, "expenses"),
+      where("memberId", "==", id),
+      orderBy("date", "desc")
+    );
+  }, [firestore, id]);
+
+  const { data: expenses, loading: expensesLoading } = useCollection<Expense>(expensesQuery as any);
+
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [newAmount, setNewAmount] = useState("");
   const [newCategory, setNewCategory] = useState<ExpenseCategory>("Groceries");
   const [newNote, setNewNote] = useState("");
 
   useEffect(() => {
-    if (!id) return;
-
-    const fetchMember = async () => {
-      const docRef = doc(db, "members", id as string);
-      const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) {
-        setMember({ id: docSnap.id, ...docSnap.data() } as FamilyMember);
-      }
-    };
-
-    const q = query(
-      collection(db, "expenses"), 
-      where("memberId", "==", id),
-      orderBy("date", "desc")
-    );
-    const unsub = onSnapshot(q, (snapshot) => {
-      setExpenses(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Expense)));
-    });
-
-    fetchMember();
-    return unsub;
-  }, [id]);
+    if (!authLoading && !user) {
+      router.push("/login");
+    }
+  }, [user, authLoading, router]);
 
   const handleAddExpense = async () => {
-    if (!newAmount || !member) return;
-    try {
-      await addDoc(collection(db, "expenses"), {
-        memberId: member.id,
-        memberName: member.name,
-        amount: parseFloat(newAmount),
-        category: newCategory,
-        note: newNote,
-        date: Date.now()
+    if (!newAmount || !member || !firestore) return;
+    const amount = parseFloat(newAmount);
+    const data = {
+      memberId: member.id,
+      memberName: member.name,
+      amount,
+      category: newCategory,
+      note: newNote,
+      date: Date.now()
+    };
+
+    addDoc(collection(firestore, "expenses"), data)
+      .then(() => {
+        setNewAmount("");
+        setNewNote("");
+        setIsDialogOpen(false);
+      })
+      .catch(async (err) => {
+        const permissionError = new FirestorePermissionError({
+          path: 'expenses',
+          operation: 'create',
+          requestResourceData: data,
+        });
+        errorEmitter.emit('permission-error', permissionError);
       });
-      setNewAmount("");
-      setNewNote("");
-      setIsDialogOpen(false);
-    } catch (error) {
-      toast({
-        title: "Error saving expense",
-        description: "Please check your inputs and try again.",
-        variant: "destructive"
-      });
-    }
   };
 
   const handleDeleteExpense = async (expenseId: string) => {
-    if (confirm("Remove this transaction?")) {
-      await deleteDoc(doc(db, "expenses", expenseId));
-    }
+    if (!firestore || !confirm("Remove this transaction?")) return;
+    
+    deleteDoc(doc(firestore, "expenses", expenseId))
+      .catch(async (err) => {
+        const permissionError = new FirestorePermissionError({
+          path: `expenses/${expenseId}`,
+          operation: 'delete',
+        });
+        errorEmitter.emit('permission-error', permissionError);
+      });
   };
 
-  if (!member) return <div className="p-10 text-center">Loading registry...</div>;
+  if (authLoading || memberLoading) return <div className="p-10 text-center">Loading registry...</div>;
+  if (!member) return <div className="p-10 text-center text-destructive">Member profile not found.</div>;
 
   const memberTotal = expenses.reduce((acc, curr) => acc + curr.amount, 0);
 
@@ -202,7 +215,7 @@ export default function MemberProfile() {
                 </CardContent>
               </Card>
             ))}
-            {expenses.length === 0 && (
+            {expenses.length === 0 && !expensesLoading && (
               <div className="text-center py-20 text-muted-foreground italic">
                 No transactions recorded yet.
               </div>
