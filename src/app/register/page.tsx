@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -30,7 +29,7 @@ export default function RegisterPage() {
     if (isConfigDummy) {
       toast({
         title: "Configuration Missing",
-        description: "Firebase placeholder keys detected. Please ensure your project is connected in the Firebase Console and wait for the config to sync.",
+        description: "Firebase placeholder keys detected. Please ensure your project is connected in the Firebase Console.",
         variant: "destructive",
       });
       return;
@@ -69,15 +68,12 @@ export default function RegisterPage() {
       
       let message = "An unexpected error occurred during registration.";
       
-      // Map specific Firebase errors to helpful user advice
       if (error.code === 'auth/operation-not-allowed') {
         message = "Email/Password sign-in is disabled. Please enable it in the Firebase Console under Authentication > Sign-in method.";
       } else if (error.code === 'auth/email-already-in-use') {
         message = "This family email is already registered. Try logging in instead.";
       } else if (error.code === 'auth/invalid-email') {
         message = "Please enter a valid email address.";
-      } else if (error.code === 'auth/network-request-failed') {
-        message = "Connection failed. Please check your internet or console connectivity.";
       }
 
       toast({
@@ -150,7 +146,7 @@ export default function RegisterPage() {
                 className="bg-card/50 h-12"
               />
             </div>
-            <Button type="submit" className="w-full btn-cyan py-6 font-bold" disabled={loading}>
+            <Button type="submit" className="w-full btn-cyan py-6 font-bold" disabled={loading || isConfigDummy}>
               {loading ? "INITIALIZING..." : "CREATE FAMILY REGISTRY"}
             </Button>
           </form>

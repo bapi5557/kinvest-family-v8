@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useEffect, useState } from 'react';
@@ -53,7 +52,6 @@ export function FirebaseClientProvider({ children }: { children: React.ReactNode
     );
   }
 
-  // Handle case where config hasn't been synced from the cloud yet
   if (isConfigDummy && !firebase) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-background p-6">
