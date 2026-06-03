@@ -7,7 +7,7 @@ import { useAuth } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
-import { Wallet, AlertCircle, Info } from 'lucide-react';
+import { Wallet, Info, CheckCircle2 } from 'lucide-react';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
 import { firebaseConfig } from '@/firebase/config';
@@ -29,7 +29,7 @@ export default function RegisterPage() {
     if (isConfigDummy) {
       toast({
         title: "Configuration Missing",
-        description: "Firebase placeholder keys detected. Please ensure your project is connected in the Firebase Console.",
+        description: "Please connect a real Firebase project in the Studio UI first.",
         variant: "destructive",
       });
       return;
@@ -37,8 +37,8 @@ export default function RegisterPage() {
 
     if (password.length < 6) {
       toast({
-        title: "Validation Error",
-        description: "Firebase requires passwords to be at least 6 characters.",
+        title: "Weak Password",
+        description: "Firebase requires at least 6 characters.",
         variant: "destructive",
       });
       return;
@@ -59,23 +59,17 @@ export default function RegisterPage() {
       if (userCredential.user) {
         toast({
           title: "Registry Created",
-          description: "Welcome to Kincash! Your family gateway is now active.",
+          description: "Welcome to Kincash!",
         });
         router.push('/');
       }
     } catch (error: any) {
-      console.error("Registration Error:", error);
-      
-      let message = "An unexpected error occurred during registration.";
-      
+      let message = "An error occurred during registration.";
       if (error.code === 'auth/operation-not-allowed') {
-        message = "Email/Password sign-in is disabled. Please enable it in the Firebase Console under Authentication > Sign-in method.";
+        message = "Email/Password sign-in is disabled in your Firebase Console.";
       } else if (error.code === 'auth/email-already-in-use') {
-        message = "This family email is already registered. Try logging in instead.";
-      } else if (error.code === 'auth/invalid-email') {
-        message = "Please enter a valid email address.";
+        message = "This family email is already registered.";
       }
-
       toast({
         title: "Registration Failed",
         description: message,
@@ -97,12 +91,32 @@ export default function RegisterPage() {
       </div>
 
       {isConfigDummy && (
-        <div className="max-w-md w-full mb-6 p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-start gap-3 text-amber-500">
-          <Info className="w-5 h-5 mt-0.5 shrink-0" />
-          <div className="text-xs">
-            <p className="font-bold uppercase mb-1">Setup Required</p>
-            <p>Your app is not yet connected to a real Firebase project. Registration will only work after you've completed the project setup in the console.</p>
-          </div>
+        <Card className="max-w-md w-full mb-6 border-amber-500/20 bg-amber-500/5">
+          <CardContent className="pt-6">
+            <div className="flex gap-3 text-amber-500">
+              <Info className="w-5 h-5 shrink-0 mt-0.5" />
+              <div className="space-y-4">
+                <div>
+                  <p className="font-bold uppercase text-xs mb-1">Step 1: Connect Project</p>
+                  <p className="text-xs">Click the "Connect" button in the Studio interface.</p>
+                </div>
+                <div>
+                  <p className="font-bold uppercase text-xs mb-1">Step 2: Enable Services</p>
+                  <ul className="text-xs list-disc list-inside space-y-1">
+                    <li>Enable **Email/Password** in Firebase Auth.</li>
+                    <li>Create a **Firestore** database in test mode.</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {!isConfigDummy && (
+        <div className="max-w-md w-full mb-6 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl flex items-center gap-3 text-emerald-500">
+          <CheckCircle2 className="w-4 h-4" />
+          <p className="text-[10px] font-bold uppercase tracking-widest">Firebase Gateway Active</p>
         </div>
       )}
 

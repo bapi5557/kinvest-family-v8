@@ -1,4 +1,3 @@
-
 {
   "entities": {
     "FamilyMember": {
@@ -25,12 +24,27 @@
         "date": { "type": "number" }
       },
       "required": ["memberId", "amount", "category", "date"]
+    },
+    "Family": {
+      "title": "Family",
+      "description": "Information about the family unit.",
+      "type": "object",
+      "properties": {
+        "familyName": { "type": "string" },
+        "adminEmail": { "type": "string" },
+        "currency": { "type": "string", "default": "USD" }
+      },
+      "required": ["familyName", "adminEmail"]
     }
   },
   "auth": {
     "providers": ["password"]
   },
   "firestore": {
+    "/families/{familyId}": {
+      "schema": "Family",
+      "description": "Global family settings and metadata."
+    },
     "/members/{memberId}": {
       "schema": "FamilyMember",
       "description": "Collection of family members."
