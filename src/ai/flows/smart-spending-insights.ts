@@ -64,7 +64,7 @@ Analyze the provided family spending data to identify patterns, highlight top sp
 --- Spending Data ---
 Monthly Spending:
 {{#each monthlySpending}}
-- {{ @key }}: ${{ this }}
+- {{ @key }}: {{ this }}
 {{/each}}
 
 {{#if spendingHistorySummary}}
